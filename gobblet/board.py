@@ -1,7 +1,5 @@
 from tkinter import *
-#from tkinter.tkk import *
 import numpy as np
-import random
 
 window=0
 canvas=0
@@ -25,22 +23,29 @@ class Board:
         self.external_stacks2 = {0:[None for _ in range(3)],1:[None for _ in range(3)]}
         self.current_player = np.random.randint(1)
     
-    def move_piece(self, from_stack, from_row, from_col, to_row, to_col, size):
+    # if moving from an external stack, ext_stack is the numbered external stack; from_row
+    # and from_col won't be needed. if moving from a game board stack, ext_stack won't be
+    # needed and from_col and from_row will be the coordinates on the game board
+    def move_piece(self, ext_stack, from_row, from_col, to_row, to_col):
         self.grid2 = self.grid.copy()
         self.external_stacks2 = self.external_stacks.copy()
-        if from_stack:
-            piece = self.external_stacks[self.current_player][size].pop()
+        if ext_stack:
+            piece = self.external_stacks[self.current_player][ext_stack].pop()
             self.grid[to_row][to_col].append(piece)
         else:
             piece = self.grid[from_row][from_col].pop()
             self.grid[to_row][to_col].append(piece)
             self.current_player = 1 - self.current_player
             
+    # from_stack will either be an int (indicating the numbered external stack) or a stack
+    # on the game board. if from_stack is a game board stack, player won't be needed
     def is_valid_move(self, player, from_stack, to_row, to_col):
         if not (0 <= to_row < 4 and 0 <= to_col < 4):
             return False
         if isinstance(from_stack, int):
             if not self.external_stacks[player][from_stack]:
+                return False
+            if not valid_external_gobble(self, to_row, to_col):
                 return False
             piece = self.external_stacks[player][from_stack][-1]
         else:
@@ -51,6 +56,48 @@ class Board:
             if piece.owner == self.current_player:
                 return True
         return False
+    
+    def valid_external_gobble(self, to_row, to_col):
+        count = 0
+        opponent = 1 - self.current_player
+        # check row
+        for x in range(4):
+            if self.grid[to_row][x]:
+                piece = self.grid[to_row][x][-1]
+                if piece.owner == opponent:
+                    count += 1
+        if (count == 3):
+            return True
+        count = 0
+        # check column
+        for x in range(4):
+            if self.grid[x][to_col]:
+                piece = self.grid[x][to_col][-1]
+                if piece.owner == opponent:
+                    count += 1
+        if (count == 3):
+            return True
+        count = 0
+        # check left diagonal
+        if (to_row == to_col):
+            for x in range(4):
+                if self.grid[x][x]:
+                    piece = self.grid[x][x][-1]
+                    if piece.owner == opponent:
+                        count += 1
+        if (count == 3):
+            return True
+        count = 0
+        # check right diagonal, honestly can't think of a better way to check if the target
+        # board space is one of these four spaces
+        if ((to_row == 0 and to_col == 3) or (to_row == 1 and to_col == 2) or (to_row == 2 and to_col == 1) or (to_row == 3 and to_col == 0)):
+            for x in range(4):
+                if self.grid[x][3-x]:
+                    piece = self.grid[x][3-x][-1]
+                    if piece.owner == opponent:
+                        count += 1
+        if (count == 3):
+            return True
         
     def check_win(self):
         for player in [0,1]:
@@ -153,18 +200,20 @@ class Board:
         if self.check_win() is None:
             # simulate a game by making random moves for now
             # decide move
-            # if its from an external stack
             
+            # if its from an external stack
+            #if self.is_valid_move(self, player, from_stack, to_row, to_col):
+                #self.move_piece(self, from_stack, from_row, from_col, to_row, to_col, size)
             # if not
-            if uncover_check(self, from_row, from_col, to_row, to_col):
+            #if self.uncover_check(self, from_row, from_col, to_row, to_col):
                 # if returned true opponent wins
                 # move piece
-                move_piece(self, from_stack, from_row, from_col, to_row, to_col)
-            else:
+                #self.move_piece(self, None, from_row, from_col, to_row, to_col, None)
+            #else:
                 # check if its valid
-                if is_valid_move(self, player, from_stack, to_row, to_col):
+                #if self.is_valid_move(self, player, from_stack, to_row, to_col):
                     # move piece
-                    move_piece(self, from_stack, from_row, from_col, to_row, to_col)
+                    #self.move_piece(self, None, from_row, from_col, to_row, to_col, None)
             self.visualize_board()
             self.window.after(5000,self.game_loop)
         else:
