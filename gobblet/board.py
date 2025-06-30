@@ -1,6 +1,7 @@
 from tkinter import *
 #from tkinter.tkk import *
 import numpy as np
+import random
 
 window=0
 canvas=0
@@ -16,39 +17,28 @@ class Board:
         self.grid2 = self.grid.copy()
         self.external_stacks = {
             0: [ # player 0
-                [GamePiece(size,0) for size in reversed(range(1,5))] for _ in range(3)
+                [GamePiece(size,0) for size in (range(1,5))] for _ in range(3)
             ],
             1: [ # player 1
-                [GamePiece(size,1) for size in reversed(range(1,5))] for _ in range(3)
+                [GamePiece(size,1) for size in (range(1,5))] for _ in range(3)
             ]}
         self.external_stacks2 = {0:[None for _ in range(3)],1:[None for _ in range(3)]}
         self.current_player = np.random.randint(1)
     
-    def move_piece(self, from_stack, from_row, from_col, to_row, to_col, size=None):
+    def move_piece(self, from_stack, from_row, from_col, to_row, to_col, size):
+        self.grid2 = self.grid.copy()
+        self.external_stacks2 = self.external_stacks.copy()
         if from_stack:
-            if not self.external_stacks[self.current_player][size]:
-                return False
             piece = self.external_stacks[self.current_player][size].pop()
+            self.grid[to_row][to_col].append(piece)
         else:
-            if not self.grid[from_row][from_col]:
-                return False
             piece = self.grid[from_row][from_col].pop()
-        
-        if self.is_valid_move(piece, to_row, to_col):
             self.grid[to_row][to_col].append(piece)
             self.current_player = 1 - self.current_player
-            return True
-        else:
-            if from_stack:
-                self.external_stacks[self.current_player][size].append(piece)
-            else:
-                self.grid[from_row][from_col].append(piece)
-            return False
             
     def is_valid_move(self, player, from_stack, to_row, to_col):
         if not (0 <= to_row < 4 and 0 <= to_col < 4):
             return False
-        
         if isinstance(from_stack, int):
             if not self.external_stacks[player][from_stack]:
                 return False
@@ -57,10 +47,9 @@ class Board:
             if not from_stack:
                 return False
             piece = from_stack[-1]
-        
         if not self.grid[to_row][to_col] or self.grid[to_row][to_col][-1].size < piece.size:
-            return True
-        
+            if piece.owner == self.current_player:
+                return True
         return False
         
     def check_win(self):
@@ -78,18 +67,19 @@ class Board:
         return None
     
     def uncover_check(self, from_row, from_col, to_row, to_col):
-        piece = self.grid[from_row][from_col].pop()
-        opponent = 1 - self.current_player
-        win = self.check_win()
-        self.grid[from_row][from_col].append(piece)
-        if win == opponent:
-            if all((self.is_valid_move(self.current_player, to_row, to_col)) and from_row != to_row and from_col != to_col):
-                self.grid[to_row][to_col].append(piece)
-                if self.check_win() == opponent:
+        if self.grid[from_row][from_col]:
+            piece = self.grid[from_row][from_col].pop()
+            opponent = 1 - self.current_player
+            win = self.check_win()
+            self.grid[from_row][from_col].append(piece)
+            if win == opponent:
+                if all((self.is_valid_move(self.current_player, to_row, to_col)) and from_row != to_row and from_col != to_col):
+                    self.grid[to_row][to_col].append(piece)
+                    if self.check_win() == opponent:
+                        self.grid[to_row][to_col].pop()
+                        return True
                     self.grid[to_row][to_col].pop()
-                    return True
-                self.grid[to_row][to_col].pop()
-            return True
+                return True
         return False
     
     def encode_board(self):
@@ -158,17 +148,25 @@ class Board:
         self.window.mainloop()
         
     def game_loop(self):
+        # check win
+        # if None, continue game
         if self.check_win() is None:
-            self.visualize_board()
             # simulate a game by making random moves for now
             # decide move
-            # check if its valid
-            # if an opponent's piece is underneath, do an uncover check
-            # if returned true opponent wins
-            # move piece
-            # check win
-            # if None, continue game
-            self.window.after(1000,self.game_loop)
+            # if its from an external stack
+            
+            # if not
+            if uncover_check(self, from_row, from_col, to_row, to_col):
+                # if returned true opponent wins
+                # move piece
+                move_piece(self, from_stack, from_row, from_col, to_row, to_col)
+            else:
+                # check if its valid
+                if is_valid_move(self, player, from_stack, to_row, to_col):
+                    # move piece
+                    move_piece(self, from_stack, from_row, from_col, to_row, to_col)
+            self.visualize_board()
+            self.window.after(5000,self.game_loop)
         else:
             self.visualize_win()
     
@@ -180,51 +178,51 @@ class Board:
         for x in range(4):
             for y in range(4):
                 if self.grid[x][y]:
-                    piece = board[x][y][0]
+                    piece = self.grid[x][y][-1]
                     if piece.owner == 0:
                         color = "red"
                     else:
                         color = "royalblue"
-                    self.canvas.create_oval(((128+(x*64))+((4-piece.size)*16)), ((128+(y*64))+((4-piece.size)*16)), (((128+(x*64))+((4-piece.size)*16))+(piece.size*16)), (((128+(y*64))+((4-piece.size)*16))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
-                    self.canvas.create_text((((128+(x*64))+((4-piece.size)*16))+(((128+(x*64))+((4-piece.size)*16))+(piece.size*16)))/2, (((128+(y*64))+((4-piece.size)*16))+(((128+(y*64))+((4-piece.size)*16))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
+                    self.canvas.create_oval(((128+(x*64))+((4-piece.size)*8)), ((128+(y*64))+((4-piece.size)*8)), (((128+(x*64))+((4-piece.size)*8))+(piece.size*16)), (((128+(y*64))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
+                    self.canvas.create_text((((128+(x*64))+((4-piece.size)*8))+(((128+(x*64))+((4-piece.size)*8))+(piece.size*16)))/2, (((128+(y*64))+((4-piece.size)*8))+(((128+(y*64))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
         
         # draw the current external stacks
         for player in [0,1]:
             for y in [0,1,2]:
                 if self.external_stacks[player][y]:
-                    piece = self.external_stacks[player][y][0]
+                    piece = self.external_stacks[player][y][-1]
                     if piece.owner == 0:
                         color = "red"
                         x=160
                     else:
                         color = "royalblue"
                         x=128
-                    self.canvas.create_oval(((48+(player*352))+((4-piece.size)*16)), ((x+(y*80))+((4-piece.size)*16)), (((48+(player*352))+((4-piece.size)*16))+(piece.size*16)), (((x+(y*80))+((4-piece.size)*16))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
-                    self.canvas.create_text((((48+(player*352))+((4-piece.size)*16))+(((48+(player*352))+((4-piece.size)*16))+(piece.size*16)))/2, (((x+(y*80))+((4-piece.size)*16))+(((x+(y*80))+((4-piece.size)*16))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
+                    self.canvas.create_oval(((48+(player*352))+((4-piece.size)*8)), ((x+(y*80))+((4-piece.size)*8)), (((48+(player*352))+((4-piece.size)*8))+(piece.size*16)), (((x+(y*80))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
+                    self.canvas.create_text((((48+(player*352))+((4-piece.size)*8))+(((48+(player*352))+((4-piece.size)*8))+(piece.size*16)))/2, (((x+(y*80))+((4-piece.size)*8))+(((x+(y*80))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
         
         # draw the previous board state
         for x in range(4):
             for y in range(4):
                 if self.grid2[x][y]:
-                    piece = self.grid2[x][y][0]
+                    piece = self.grid2[x][y][-1]
                     if piece.owner == 0:
                         color = "red"
                     else:
                         color = "royalblue"
-                    self.canvas.create_oval(((576+(x*64))+((4-piece.size)*16)), ((576+(y*64))+((4-piece.size)*16)), (((576+(x*64))+((4-piece.size)*16))+(piece.size*16)), (((576+(y*64))+((4-piece.size)*16))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
-                    self.canvas.create_text((((576+(x*64))+((4-piece.size)*16))+(((576+(x*64))+((4-piece.size)*16))+(piece.size*16)))/2, (((576+(y*64))+((4-piece.size)*16))+(((576+(y*64))+((4-piece.size)*16))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
+                    self.canvas.create_oval(((576+(x*64))+((4-piece.size)*8)), ((576+(y*64))+((4-piece.size)*8)), (((576+(x*64))+((4-piece.size)*8))+(piece.size*16)), (((576+(y*64))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
+                    self.canvas.create_text((((576+(x*64))+((4-piece.size)*8))+(((576+(x*64))+((4-piece.size)*8))+(piece.size*16)))/2, (((576+(y*64))+((4-piece.size)*8))+(((576+(y*64))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
         
         # draw the previous external stacks
         for player in [0,1]:
             for y in [0,1,2]:
                 if self.external_stacks2[player][y]:
-                    piece = self.external_stacks2[player][y][0]
+                    piece = self.external_stacks2[player][y][-1]
                     if piece.owner == 0:
                         color = "red"
                         x=160
                     else:
                         color = "royalblue"
                         x=128
-                    self.canvas.create_oval(((496+(player*352))+((4-piece.size)*16)), ((x+(y*80))+((4-piece.size)*16)), (((496+(player*352))+((4-piece.size)*16))+(piece.size*16)), (((x+(y*80))+((4-piece.size)*16))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
-                    self.canvas.create_text((((496+(player*352))+((4-piece.size)*16))+(((496+(player*352))+((4-piece.size)*16))+(piece.size*16)))/2, (((x+(y*80))+((4-piece.size)*16))+(((x+(y*80))+((4-piece.size)*16))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
+                    self.canvas.create_oval(((496+(player*352))+((4-piece.size)*8)), ((x+(y*80))+((4-piece.size)*8)), (((496+(player*352))+((4-piece.size)*8))+(piece.size*16)), (((x+(y*80))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
+                    self.canvas.create_text((((496+(player*352))+((4-piece.size)*8))+(((496+(player*352))+((4-piece.size)*8))+(piece.size*16)))/2, (((x+(y*80))+((4-piece.size)*8))+(((x+(y*80))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
         self.canvas.pack()
