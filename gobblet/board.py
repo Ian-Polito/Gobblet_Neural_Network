@@ -22,6 +22,35 @@ class Board:
             ]}
         self.external_stacks2 = {0:[None for _ in range(3)],1:[None for _ in range(3)]}
         self.current_player = np.random.randint(1)
+        self.possible_moves = enumerate_all_possible_moves(self)
+    
+    # returns a list of all possible move tuples in a fixed order
+    # each move is either:
+    # ("external", stack_index, to_row, to_col)
+    # ("board", from_row, from_col, to_row, to_col)
+    def enumerate_all_possible_moves(self):
+        moves = []
+        # external stack moves: 3 stacks x 4x4 board = 48
+        for stack_index in range(3):
+            for to_row in range(4):
+                for to_col in range(4):
+                    moves.append(("external", stack_index, to_row, to_col))
+        
+        # board to board moves: 16 positions x 15 destinations = 240
+        for from_row in range(4):
+            for from_col in range(4):
+                for to_row in range(4):
+                    for to_col in range(4):
+                        if from_row != to_row or from_col != to_col:
+                            moves.append(("board", from_row, from_col, to_row, to_col))
+        return moves
+    
+    # given an index from the neural network output, return the corresponding move tuple
+    def decode_move(self, index):
+        if (0 <= index < len(self.possible_moves)):
+            return self.possible_moves[index]
+        else:
+            return IndexError(f"Invalid move index: {index}")
     
     # if moving from an external stack, ext_stack is the numbered external stack; from_row
     # and from_col won't be needed. if moving from a game board stack, ext_stack won't be
