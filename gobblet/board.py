@@ -163,26 +163,36 @@ class Board:
     
     def encode_board(self):
         encoded = []
+        # encode the 4x4 board (16 stacks, each with up to 4 pieces)
         for row in self.grid:
             for stack in row:
-                for piece in stack:
-                    size_encoding = [0] * 4
-                    owner_encoding = [0] * 2
-                    size_encoding[piece.size - 1] = 1
-                    owner_encoding[piece.owner] = 1
-                    encoded.extend(size_encoding + owner_encoding)
-                    for _ in range(4 - len(stack)):
-                        encoded.extend([0]*6)
-        for player in [0, 1]:
-            for stack in self.external_stacks[player]:
-                for piece in stack:
-                    size_encoding = [0] * 4
-                    owner_encoding = [0] * 2
-                    size_encoding[piece.size - 1] = 1
-                    owner_encoding[piece.owner] = 1
-                    encoded.extend(size_encoding + owner_encoding)
-                    for _ in range(4 - len(stack)):
+                # encode up to 4 pieces per stack (top to bottom)
+                for i in range(4):
+                    if i < len(stack):
+                        piece = stack[i]
+                        size_encoding = [0] * 4
+                        owner_encoding = [0] * 2
+                        size_encoding[piece.size - 1] = 1
+                        owner_encoding[piece.owner] = 1
+                        encoded.extend(size_encoding + owner_encoding)
+                    else:
+                        # pad with zeroes if fewer than 4 pieces
                         encoded.extend([0] * 6)
+        # encode the external stacks (3 stacks per player, each with up to 4 pieces)
+        for player in [0,1]:
+            for stack in self.external_stacks[player]:
+                for i in range(4):
+                    if i < len(stack):
+                        piece = stack[i]
+                        size_encoding = [0] * 4
+                        owner_encoding = [0] * 2
+                        size_encoding[piece.size - 1] = 1
+                        owner_encoding[piece.owner] = 1
+                        encoded.extend(size_encoding + owner_encoding)
+                    else:
+                        # pad with zeroes
+                        encoded.extend([0] * 6)
+        assert len(encoded) == 528, f"Encoded board length is {len(encoded)}, expected 528"
         return encoded
         
     def initialize_visualization(self):
