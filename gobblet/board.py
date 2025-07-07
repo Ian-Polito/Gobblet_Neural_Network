@@ -35,17 +35,18 @@ class Board:
         else:
             piece = self.grid[from_row][from_col].pop()
             self.grid[to_row][to_col].append(piece)
-            self.current_player = 1 - self.current_player
+        self.current_player = 1 - self.current_player
             
     # from_stack will either be an int (indicating the numbered external stack) or a stack
     # on the game board. if from_stack is a game board stack, player won't be needed
+    # will player ever be needed? can we just use current_player?
     def is_valid_move(self, player, from_stack, to_row, to_col):
         if not (0 <= to_row < 4 and 0 <= to_col < 4):
             return False
         if isinstance(from_stack, int):
             if not self.external_stacks[player][from_stack]:
                 return False
-            if not valid_external_gobble(self, to_row, to_col):
+            if not self.valid_external_gobble(self, to_row, to_col):
                 return False
             piece = self.external_stacks[player][from_stack][-1]
         else:
@@ -113,6 +114,7 @@ class Board:
                 return player
         return None
     
+    # consider only doing this check if there are three opponent pieces in the line
     def uncover_check(self, from_row, from_col, to_row, to_col):
         if self.grid[from_row][from_col]:
             piece = self.grid[from_row][from_col].pop()
@@ -120,12 +122,13 @@ class Board:
             win = self.check_win()
             self.grid[from_row][from_col].append(piece)
             if win == opponent:
-                if all((self.is_valid_move(self.current_player, to_row, to_col)) and from_row != to_row and from_col != to_col):
+                if all((self.is_valid_move(self.current_player, self.grid[from_row][from_col], to_row, to_col)) and from_row != to_row and from_col != to_col):
                     self.grid[to_row][to_col].append(piece)
                     if self.check_win() == opponent:
                         self.grid[to_row][to_col].pop()
                         return True
                     self.grid[to_row][to_col].pop()
+                    return False
                 return True
         return False
     
@@ -154,39 +157,39 @@ class Board:
         return encoded
         
     def initialize_visualization(self):
-            self.window = Tk()
-            self.canvas = Canvas(self.window, width=960, height=540)
-            self.window.title("Gobblet Board Visualization")
-            window_width = 960
-            window_height = 540
-            screen_width = self.window.winfo_screenwidth()
-            screen_height = self.window.winfo_screenheight()
-            x = (screen_width // 2) - (window_width // 2)
-            y = (screen_height // 2) - (window_height // 2)
-            self.window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.window = Tk()
+        self.canvas = Canvas(self.window, width=960, height=540)
+        self.window.title("Gobblet Board Visualization")
+        window_width = 960
+        window_height = 540
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+        x = (screen_width // 2) - (window_width // 2)
+        y = (screen_height // 2) - (window_height // 2)
+        self.window.geometry(f"{window_width}x{window_height}+{x}+{y}")
             
-            # draw the before board
-            for x in range(4):
-                for y in range(4):
-                    self.canvas.create_rectangle(128+(x*64),128+(y*64),192+(x*64),192+(y*64), fill="white", outline="black", width=2, tags="square")
-            # draw the after board
-            for x in range(4):
-                for y in range(4):
-                    self.canvas.create_rectangle(576+(x*64),128+(y*64),640+(x*64),192+(y*64), fill="white", outline="black", width=2, tags="square")
+        # draw the before board
+        for x in range(4):
+            for y in range(4):
+                self.canvas.create_rectangle(128+(x*64),128+(y*64),192+(x*64),192+(y*64), fill="white", outline="black", width=2, tags="square")
+        # draw the after board
+        for x in range(4):
+            for y in range(4):
+                self.canvas.create_rectangle(576+(x*64),128+(y*64),640+(x*64),192+(y*64), fill="white", outline="black", width=2, tags="square")
+        
+        #  text above the boards
+        self.canvas.create_text(256, 104, text="Current", fill="black", font=("Arial", 12, "bold"), tags="text")
+        self.canvas.create_text(704, 104, text="Before", fill="black", font=("Arial", 12, "bold"), tags="text")
+        
+        # finally draw the external stacks
+        for x in range(3):
+            self.canvas.create_oval(48,160+(x*80),112,224+(x*80), fill="red", outline="black", width=1, tags="piece")
+            self.canvas.create_text(((48+112)/2), (((160+224)/2)+(x*80)), text="4", fill="black", font=("Arial", 12), tags="number")
+        for x in range(3):
+            self.canvas.create_oval(400,128+(x*80),464,192+(x*80), fill="royalblue", outline="black", width=1, tag="piece")
+            self.canvas.create_text(((400+464)/2), (((128+192)/2)+(x*80)), text="4", fill="black", font=("Arial", 12), tags="number")
             
-            #  text above the boards
-            self.canvas.create_text(256, 104, text="Current", fill="black", font=("Arial", 12, "bold"), tags="text")
-            self.canvas.create_text(704, 104, text="Before", fill="black", font=("Arial", 12, "bold"), tags="text")
-            
-            # finally draw the external stacks
-            for x in range(3):
-                self.canvas.create_oval(48,160+(x*80),112,224+(x*80), fill="red", outline="black", width=1, tags="piece")
-                self.canvas.create_text(((48+112)/2), (((160+224)/2)+(x*80)), text="4", fill="black", font=("Arial", 12), tags="number")
-            for x in range(3):
-                self.canvas.create_oval(400,128+(x*80),464,192+(x*80), fill="royalblue", outline="black", width=1, tag="piece")
-                self.canvas.create_text(((400+464)/2), (((128+192)/2)+(x*80)), text="4", fill="black", font=("Arial", 12), tags="number")
-            
-            self.canvas.pack()
+        self.canvas.pack()
             
     def visualize_win(self):
         self.canvas.create_text(480, 32, text=("Player", self.current_player, "wins."), fill="black", font=("Arial", 12, "bold"), tags="text")
