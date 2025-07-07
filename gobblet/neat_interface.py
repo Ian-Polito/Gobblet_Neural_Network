@@ -1,5 +1,7 @@
 import neat
 import numpy as np
+import multiprocessing
+import os
 from .board import Board
 
 def evaluate_genome(genome, config, opponents):
@@ -15,7 +17,19 @@ def evaluate_genome(genome, config, opponents):
             fitness += 0 # loss
         else:
             fitness += 10 # draw
-    genome.fitness = fitness / len(opponents)
+    return fitness / len(opponents)
+    
+def evaluate_genome_wrapper(args):
+    genome, config, all_genomes, index=args
+    opponents = [g for j, (gid, g) in enumerate(all_genomes) if j != index][:3]
+    return evaluate_genome(genome, config, opponents)
+    
+def eval_genomes(genomes, config):
+    num_cores = max(1, os.cpu_count() - 2) # leave 2 cores free
+    with multiprocessing.Pool(processes=num_cores) as pool:
+        results = pool.starmap(evaluate_genome_wrapper, [(genome, config, genomes, i) for i, (gid, genome) in enumerate(genomes)])
+        for (gid, genome), fitness in zip(genomes, results):
+            genome.fitness = fitness
     
 def play_game(net1, net2, max_turns=300):
     board = Board()
@@ -53,8 +67,3 @@ def play_game(net1, net2, max_turns=300):
         fitness[winner] += 100
         return 1 if winner == 0 else 0
     return "draw"
-
-def eval_genomes(genomes, config):
-    for i, (genome_id, genome) in enumerate(genomes):
-        opponents = [g for j, (gid, g) in enumerate(genomes) if j != i]
-        evaluate_genome(genome, config, opponents[:3])

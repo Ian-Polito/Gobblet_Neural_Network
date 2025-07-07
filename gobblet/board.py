@@ -22,7 +22,7 @@ class Board:
             ]}
         self.external_stacks2 = {0:[None for _ in range(3)],1:[None for _ in range(3)]}
         self.current_player = np.random.randint(1)
-        self.possible_moves = enumerate_all_possible_moves(self)
+        self.possible_moves = self.enumerate_all_possible_moves()
     
     # returns a list of all possible move tuples in a fixed order
     # each move is either:
@@ -75,7 +75,7 @@ class Board:
         if isinstance(from_stack, int):
             if not self.external_stacks[player][from_stack]:
                 return False
-            if not self.valid_external_gobble(self, to_row, to_col):
+            if not self.valid_external_gobble(to_row, to_col):
                 return False
             piece = self.external_stacks[player][from_stack][-1]
         else:
