@@ -11,7 +11,7 @@ parser.add_argument("-generations", type=int, default=50, help="Number of genera
 parser.add_argument("-checkpoint", type=str, help="Path to a checkpoint file to resume training")
 args = parser.parse_args()
 
-if __name == "__main__":
+if __name__ == "__main__":
     config_path = "config-feedforward.txt"
     config = neat.config.Config(
         neat.DefaultGenome,
@@ -30,7 +30,8 @@ if __name == "__main__":
 
     # add reporters
     p.add_reporter(neat.StdOutReporter(True))
-    p.add_reporter(neat.StatisticsReporter())
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
     p.add_reporter(neat.Checkpointer(generation_interval=10, filename_prefix="Gobblet_Population-"))
     
     # run NEAT

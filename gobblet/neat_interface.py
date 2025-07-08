@@ -65,5 +65,4 @@ def play_game(net1, net2, max_turns=100):
         fitness[winner] += 100
     #else: # small bonus for drawing, commented out for now until population matures
         #fitness[0] += 10
-        #fitness[1] += 10
     return fitness[0]
