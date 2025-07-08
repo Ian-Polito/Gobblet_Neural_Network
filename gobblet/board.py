@@ -143,23 +143,29 @@ class Board:
                 return player
         return None
     
-    # consider only doing this check if there are three opponent pieces in the line
+    # checks whether moving the piece on the board will uncover a win for their opponent
+    # returns true if it does, or false if it doesn't or the move interrupts the four in a row
     def uncover_check(self, from_row, from_col, to_row, to_col):
-        if self.grid[from_row][from_col]:
-            piece = self.grid[from_row][from_col].pop()
+        if self.grid[from_row][from_col]: # check if the stack is valid
+            piece = self.grid[from_row][from_col].pop() # temporarily uncover the target piece
             opponent = 1 - self.current_player
-            win = self.check_win()
-            self.grid[from_row][from_col].append(piece)
-            if win == opponent:
+            win = self.check_win() # check if moving this piece uncovers a four in a row
+            if win == opponent: # if moving the piece uncovers a four in a row
                 if all((self.is_valid_move(self.current_player, self.grid[from_row][from_col], to_row, to_col)) and from_row != to_row and from_col != to_col):
-                    self.grid[to_row][to_col].append(piece)
-                    if self.check_win() == opponent:
-                        self.grid[to_row][to_col].pop()
-                        return True
-                    self.grid[to_row][to_col].pop()
-                    return False
-                return True
-        return False
+                # check if the move is valid, and not putting the piece back where it was
+                    self.grid[to_row][to_col].append(piece) # temporarily move the piece to the destination
+                    if self.check_win() == opponent: # check if this interrupted the four in a row
+                        self.grid[to_row][to_col].pop() # it did not, remove the piece from the destination
+                        self.grid[from_row][from_col].append(piece) # move the piece back
+                        return True # moving the piece uncovers a win for the opponent. Current player loses
+                    self.grid[to_row][to_col].pop() # move interrupted the four in a row
+                    self.grid[from_row][from_col].append(piece) # move the piece back
+                    return False # moving the piece does not uncover a win for the opponent. Game continues
+                self.grid[from_row][from_col].append(piece) # move the piece back
+                return True # destination was invalid, so move uncovers a win for the opponent. Current player loses
+            self.grid[from_row][from_col].append(piece) # move the piece back
+            return False # moving the piece does not uncover a win
+        return False # stack is invalid
     
     def encode_board(self):
         encoded = []
