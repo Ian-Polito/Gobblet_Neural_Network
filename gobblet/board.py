@@ -58,7 +58,7 @@ class Board:
     def move_piece(self, ext_stack, from_row, from_col, to_row, to_col):
         self.grid2 = self.grid.copy()
         self.external_stacks2 = self.external_stacks.copy()
-        if ext_stack:
+        if ext_stack is not None:
             piece = self.external_stacks[self.current_player][ext_stack].pop()
             self.grid[to_row][to_col].append(piece)
         else:
@@ -68,15 +68,15 @@ class Board:
             
     # from_stack will either be an int (indicating the numbered external stack) or a stack
     # on the game board. if from_stack is a game board stack, player won't be needed
-    # will player ever be needed? can we just use current_player?
     def is_valid_move(self, player, from_stack, to_row, to_col):
         if not (0 <= to_row < 4 and 0 <= to_col < 4):
             return False
         if isinstance(from_stack, int):
             if not self.external_stacks[player][from_stack]:
                 return False
-            if not self.valid_external_gobble(to_row, to_col):
-                return False
+            if self.grid[to_row][to_col]:
+                if not self.valid_external_gobble(to_row, to_col):
+                    return False
             piece = self.external_stacks[player][from_stack][-1]
         else:
             if not from_stack:
@@ -128,6 +128,7 @@ class Board:
                         count += 1
         if (count == 3):
             return True
+        return False
         
     def check_win(self):
         for player in [0,1]:

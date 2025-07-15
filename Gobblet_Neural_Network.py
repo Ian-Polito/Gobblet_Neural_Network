@@ -30,14 +30,16 @@ if __name__ == "__main__":
 
     # add reporters
     p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
+    p.add_reporter(neat.StatisticsReporter())
     p.add_reporter(neat.Checkpointer(generation_interval=10, filename_prefix="Gobblet_Population-"))
     
     # run NEAT
     winner = p.run(eval_genomes, n=args.generations)
-    all_genomes = stats.most_fit_genomes[-1].population.items()
-    top_two = sorted(all_genomes, key=lambda g: g[1].fitness if g[1].fitness is not None else -float('inf'), reverse=True)[:2]
+    final_population = [(k, v) for k, v in p.population.items()]
+    top_two = sorted(final_population, key=lambda g: g[1].fitness if g[1].fitness is not None else -float('inf'), reverse=True)[:2]
+    
+    # Manually save a checkpoint after the run
+    p.checkpointer.save_checkpoint(p, p.generation)
     
     # Save the top two genomes
     with open("gobblet_champion1.pk1", "wb") as f:
@@ -48,12 +50,10 @@ if __name__ == "__main__":
             
     print("Training complete. Best genome saved to gobblet_champion.pk1")
     
-    board = Board()
-    
     #start visualization if flag is set
     if args.visualization:
+        board = Board()
         board.initialize_visualization()
         visualization = True
-    
-    board.game_loop()
-    board.visualize_board_wrapper()
+        board.game_loop()
+        board.visualize_board_wrapper()
