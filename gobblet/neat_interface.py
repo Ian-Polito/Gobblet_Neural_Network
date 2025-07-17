@@ -59,7 +59,8 @@ def play_game(net1, net2, max_turns=32):
             if board.is_valid_move(board.current_player, from_stack, to_row, to_col):
                 if board.uncover_check(from_row, from_col, to_row, to_col):
                     # move results in a loss due to uncovering a win without interrupting it
-                    return 0 if board.current_player == 0 else 1
+                    fitness[1 - self.current_player] += 100
+                    return fitness[0]
                 else:
                     board.move_piece(None, from_row, from_col, to_row, to_col)
                     fitness[board.current_player] += 5

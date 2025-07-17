@@ -237,36 +237,69 @@ class Board:
             
         self.canvas.pack()
             
-    def visualize_win(self):
-        self.canvas.create_text(480, 32, text=("Player", self.current_player, "wins."), fill="black", font=("Arial", 12, "bold"), tags="text")
+    def visualize_win(self, winner):
+        if winner == 1 or winner == 0:
+            self.canvas.create_text(480, 32, text=("Player", self.current_player, "wins."), fill="black", font=("Arial", 12, "bold"), tags="text")
+        else:
+            self.canvas.create_text(480, 32, text=("Game resulted in a Draw."), fill="black", font=("Arial", 12, "bold"), tags="text")
         
     def visualize_board_wrapper(self):
         self.window.mainloop()
         
-    def game_loop(self):
-        # check win
-        # if None, continue game
-        if self.check_win() is None:
-            # simulate a game by making random moves for now
-            # decide move
+    def game_loop(self, net1, net2, max_turns=32):
+        players = [net1, net2]
+        turn = 0
+        uncover_win = False
+        
+        while self.check_win() is None and turn < max_turns:
+            current_net = players[self.current_player]
+            inputs = self.encode_board()
+            outputs = current_net.activate(inputs)
+            move_index = outputs.index(max(outputs))
+            move = self.decode_move(move_index)
             
-            # if its from an external stack
-            #if self.is_valid_move(self, player, from_stack, to_row, to_col):
-                #self.move_piece(self, from_stack, from_row, from_col, to_row, to_col, size)
-            # if not
-            #if self.uncover_check(self, from_row, from_col, to_row, to_col):
-                # if returned true opponent wins
-                # move piece
-                #self.move_piece(self, None, from_row, from_col, to_row, to_col, None)
-            #else:
-                # check if its valid
-                #if self.is_valid_move(self, player, from_stack, to_row, to_col):
-                    # move piece
-                    #self.move_piece(self, None, from_row, from_col, to_row, to_col, None)
+            valid = False
+            if move[0] == "external":
+                stack_index, to_row, to_col = move[1:]
+                if self.is_valid_move(self.current_player, stack_index, to_row, to_col):
+                    self.move_piece(stack_index, None, None, to_row, to_col)
+                    valid = True
+            elif move[0] == "board":
+                from_row, from_col, to_row, to_col = move[1:]
+                from_stack = self.grid[from_row][from_col]
+                if self.is_valid_move(self.current_player, from_row, from_col, to_row, to_col):
+                    if self.uncover_check(from_row, from_col, to_row, to_col):
+                        print(f"Player {1 - self.current_player} wins by uncovering!")
+                        uncover_win = True
+                        self.visualize_win(1 - self.current_player)
+                        if from_row == to_row and from_col == to_col:
+                            # for visual purposes, remove the piece to show the win
+                            self.grid2 = self.grid.copy()
+                            self.grid[from_row][from_col].pop()
+                        else:
+                            # for visual purposes, move the piece to show the win
+                            self.move_piece(None, from_row, from_col, to_row, to_col)
+                        self.visualize_board()
+                        break
+                    else:
+                        self.move_piece(None, from_row, from_col, to_row, to_col)
+                        valid = True
+            if not valid:
+                self.current_player = 1 - self.current_player
+                print(f"Invalid move by player {self.current_player}")
             self.visualize_board()
-            self.window.after(5000,self.game_loop)
-        else:
-            self.visualize_win()
+            turn += 1
+            self.window_update()
+            self.window.after(5000) # 5 second delay between moves
+            
+        if not uncover_win:
+            winner = self.check_win()
+            self.visualize_win(winner)
+            if winner is not None:
+                print(f"Player {winner} wins!")
+            else:
+                print("Game ended in a draw.")
+        self.window.update()
     
     def visualize_board(self):
         self.canvas.delete("piece")
