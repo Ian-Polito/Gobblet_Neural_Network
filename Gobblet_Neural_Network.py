@@ -19,6 +19,7 @@ def load_genome(filename):
         return None
 
 if __name__ == "__main__":
+    
     config_path = "config-feedforward.txt"
     config = neat.config.Config(
         neat.DefaultGenome,
@@ -26,6 +27,22 @@ if __name__ == "__main__":
         neat.DefaultSpeciesSet,
         neat.DefaultStagnation,
         config_path)
+    
+    # start visualization if flag is set
+    if args.visualization:
+        genome1 = load_genome("gobblet_champion1.pkl")
+        genome2 = load_genome("gobblet_champion2.pkl")
+        
+        if (genome1 != None and genome2 != None):
+            net1 = neat.nn.FeedForwardNetwork.create(genome1, config)
+            net2 = neat.nn.FeedForwardNetwork.create(genome2, config)
+            board = Board()
+            board.initialize_visualization()
+            board.game_loop(net1, net2)
+            board.visualize_board_wrapper()
+        else:
+            print("Need two gobblet_champion pkl files to visualize a game. One or both are missing.")
+        exit
     
     # create or resume population
     if args.checkpoint and os.path.exists(args.checkpoint):
@@ -46,9 +63,6 @@ if __name__ == "__main__":
     final_population = [(k, v) for k, v in p.population.items()]
     top_two = sorted(final_population, key=lambda g: g[1].fitness if g[1].fitness is not None else -float('inf'), reverse=True)[:2]
     
-    # Manually save a checkpoint after the run
-    checkpointer.save_checkpoint(p, p.generation)
-    
     # Save the top two genomes
     with open("gobblet_champion1.pkl", "wb") as f:
         pickle.dump(top_two[0][1], f)
@@ -56,19 +70,4 @@ if __name__ == "__main__":
         with open("gobblet_champion2.pkl", "wb") as f:
             pickle.dump(top_two[1][1], f)
             
-    print("Training complete. Best genome saved to gobblet_champion.pk1")
-    
-    #start visualization if flag is set
-    if args.visualization:
-        genome1 = load_genome("gobblet_champion1.pkl")
-        genome2 = load_genome("gobblet_champion2.pkl")
-        
-        if (genome1 != None and genome2 != None):
-            net1 = neat.nn.FeedForwardNetwork.create(genome1, config)
-            net2 = neat.nn.FeedForwardNetwork.create(genome2, config)
-            board = Board()
-            board.initialize_visualization()
-            board.game_loop(net1, net2)
-            board.visualize_board_wrapper()
-        else:
-            print("Need two gobblet_champion pkl files to visualize a game. One or both are missing.")
+    print("Training complete. Best genome saved to gobblet_champion.pkl")

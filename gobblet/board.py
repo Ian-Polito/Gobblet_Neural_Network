@@ -12,7 +12,7 @@ class GamePiece:
 class Board:
     def __init__(self):
         self.grid = [[[] for _ in range(4)] for _ in range(4)]
-        self.grid2 = self.grid.copy()
+        self.grid2 = [[[] for _ in range(4)] for _ in range(4)]
         self.external_stacks = {
             0: [ # player 0
                 [GamePiece(size,0) for size in (range(1,5))] for _ in range(3)
@@ -56,8 +56,8 @@ class Board:
     # and from_col won't be needed. if moving from a game board stack, ext_stack won't be
     # needed and from_col and from_row will be the coordinates on the game board
     def move_piece(self, ext_stack, from_row, from_col, to_row, to_col):
-        self.grid2 = self.grid.copy()
-        self.external_stacks2 = self.external_stacks.copy()
+        self.grid2 = [[stack.copy() for stack in row] for row in self.grid]
+        self.external_stacks2 = {player: [stack.copy() for stack in stacks] for player, stacks in self.external_stacks.items()}
         if ext_stack is not None:
             piece = self.external_stacks[self.current_player][ext_stack].pop()
             self.grid[to_row][to_col].append(piece)
@@ -246,60 +246,51 @@ class Board:
     def visualize_board_wrapper(self):
         self.window.mainloop()
         
-    def game_loop(self, net1, net2, max_turns=32):
-        players = [net1, net2]
-        turn = 0
-        uncover_win = False
-        
-        while self.check_win() is None and turn < max_turns:
-            current_net = players[self.current_player]
-            inputs = self.encode_board()
-            outputs = current_net.activate(inputs)
-            move_index = outputs.index(max(outputs))
-            move = self.decode_move(move_index)
-            
-            valid = False
-            if move[0] == "external":
-                stack_index, to_row, to_col = move[1:]
-                if self.is_valid_move(self.current_player, stack_index, to_row, to_col):
-                    self.move_piece(stack_index, None, None, to_row, to_col)
-                    valid = True
-            elif move[0] == "board":
-                from_row, from_col, to_row, to_col = move[1:]
-                from_stack = self.grid[from_row][from_col]
-                if self.is_valid_move(self.current_player, from_row, from_col, to_row, to_col):
-                    if self.uncover_check(from_row, from_col, to_row, to_col):
-                        print(f"Player {1 - self.current_player} wins by uncovering!")
-                        uncover_win = True
-                        self.visualize_win(1 - self.current_player)
-                        if from_row == to_row and from_col == to_col:
-                            # for visual purposes, remove the piece to show the win
-                            self.grid2 = self.grid.copy()
-                            self.grid[from_row][from_col].pop()
-                        else:
-                            # for visual purposes, move the piece to show the win
-                            self.move_piece(None, from_row, from_col, to_row, to_col)
-                        self.visualize_board()
-                        break
-                    else:
-                        self.move_piece(None, from_row, from_col, to_row, to_col)
-                        valid = True
-            if not valid:
-                self.current_player = 1 - self.current_player
-                print(f"Invalid move by player {self.current_player}")
-            self.visualize_board()
-            turn += 1
-            self.window_update()
-            self.window.after(5000) # 5 second delay between moves
-            
-        if not uncover_win:
-            winner = self.check_win()
+    def game_loop(self, net1, net2, turn=0, max_turns=100):
+        winner = self.check_win()
+        if winner is not None or turn >= max_turns:
             self.visualize_win(winner)
             if winner is not None:
                 print(f"Player {winner} wins!")
             else:
                 print("Game ended in a draw.")
-        self.window.update()
+        current_net = [net1, net2][self.current_player]
+        inputs = self.encode_board()
+        outputs = current_net.activate(inputs)
+        move_index = outputs.index(max(outputs))
+        move = self.decode_move(move_index)
+        
+        valid = False
+        if move[0] == "external":
+            stack_index, to_row, to_col = move[1:]
+            if self.is_valid_move(self.current_player, stack_index, to_row, to_col):
+                self.move_piece(stack_index, None, None, to_row, to_col)
+                valid = True
+        elif move[0] == "board":
+            from_row, from_col, to_row, to_col = move[1:]
+            from_stack = self.grid[from_row][from_col]
+            if self.is_valid_move(self.current_player, from_row, from_col, to_row, to_col):
+                if self.uncover_check(from_row, from_col, to_row, to_col):
+                    print(f"Player {1 - self.current_player} wins by uncovering!")
+                    self.visualize_win(1 - self.current_player)
+                    if from_row == to_row and from_col == to_col:
+                        # for visual purposes, remove the piece to show the win
+                        self.grid2 = self.grid.copy()
+                        self.grid[from_row][from_col].pop()
+                    else:
+                        # for visual purposes, move the piece to show the win
+                        self.move_piece(None, from_row, from_col, to_row, to_col)
+                    self.visualize_board()
+                    return
+                else:
+                    self.move_piece(None, from_row, from_col, to_row, to_col)
+                    valid = True
+                        
+        if not valid:
+            self.current_player = 1 - self.current_player
+            print(f"Invalid move by player {self.current_player}")
+        self.visualize_board()
+        self.window.after(5000, lambda: self.game_loop(net1, net2, turn+1, max_turns)) # 5 second delay between moves
     
     def visualize_board(self):
         self.canvas.delete("piece")
@@ -340,8 +331,8 @@ class Board:
                         color = "red"
                     else:
                         color = "royalblue"
-                    self.canvas.create_oval(((576+(x*64))+((4-piece.size)*8)), ((576+(y*64))+((4-piece.size)*8)), (((576+(x*64))+((4-piece.size)*8))+(piece.size*16)), (((576+(y*64))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
-                    self.canvas.create_text((((576+(x*64))+((4-piece.size)*8))+(((576+(x*64))+((4-piece.size)*8))+(piece.size*16)))/2, (((576+(y*64))+((4-piece.size)*8))+(((576+(y*64))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
+                    self.canvas.create_oval(((576+(x*64))+((4-piece.size)*8)), ((128+(y*64))+((4-piece.size)*8)), (((576+(x*64))+((4-piece.size)*8))+(piece.size*16)), (((128+(y*64))+((4-piece.size)*8))+(piece.size*16)), fill=color, outline="black", width=1, tags="piece")
+                    self.canvas.create_text((((576+(x*64))+((4-piece.size)*8))+(((576+(x*64))+((4-piece.size)*8))+(piece.size*16)))/2, (((128+(y*64))+((4-piece.size)*8))+(((128+(y*64))+((4-piece.size)*8))+(piece.size*16)))/2, text=str(piece.size), fill="black", font=("Arial", 12), tags="number")
         
         # draw the previous external stacks
         for player in [0,1]:

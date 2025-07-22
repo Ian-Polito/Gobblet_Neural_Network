@@ -16,7 +16,7 @@ def eval_genomes(genomes, config):
         opponents = [g for j, (gid, g) in enumerate(genomes) if j!= i][:3]
         evaluate_genome(genome, config, opponents)
     
-def play_game(net1, net2, max_turns=32):
+def play_game(net1, net2, max_turns=16):
     board = Board()
     players = [net1, net2]
     fitness = [0, 0]
