@@ -19,7 +19,6 @@ def load_genome(filename):
         return None
 
 if __name__ == "__main__":
-    
     config_path = "config-feedforward.txt"
     config = neat.config.Config(
         neat.DefaultGenome,
@@ -42,7 +41,7 @@ if __name__ == "__main__":
             board.visualize_board_wrapper()
         else:
             print("Need two gobblet_champion pkl files to visualize a game. One or both are missing.")
-        exit
+        exit()
     
     # create or resume population
     if args.checkpoint and os.path.exists(args.checkpoint):

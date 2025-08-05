@@ -246,18 +246,25 @@ class Board:
     def visualize_board_wrapper(self):
         self.window.mainloop()
         
-    def game_loop(self, net1, net2, turn=0, max_turns=100):
+    def game_loop(self, net1, net2, turn=0, max_turns=16):
         winner = self.check_win()
         if winner is not None or turn >= max_turns:
             self.visualize_win(winner)
             if winner is not None:
                 print(f"Player {winner} wins!")
+                return
             else:
                 print("Game ended in a draw.")
+                return
         current_net = [net1, net2][self.current_player]
         inputs = self.encode_board()
         outputs = current_net.activate(inputs)
-        move_index = outputs.index(max(outputs))
+        # temporarily restrict outputs to just external stack -> board moves
+        allowed_indices = list(range(48))
+        # temporarily mask outputs
+        masked_outputs = [outputs[i] if i in allowed_indices else -float("inf") for i in range(len(outputs))]
+        move_index = np.argmax(masked_outputs)
+        #move_index = np.argmax(outputs)
         move = self.decode_move(move_index)
         
         valid = False
@@ -291,6 +298,7 @@ class Board:
             print(f"Invalid move by player {self.current_player}")
         self.visualize_board()
         self.window.after(5000, lambda: self.game_loop(net1, net2, turn+1, max_turns)) # 5 second delay between moves
+        print(f"Player {self.current_player}: Move {move}, Valid: {valid}")
     
     def visualize_board(self):
         self.canvas.delete("piece")
