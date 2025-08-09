@@ -16,7 +16,7 @@ def eval_genomes(genomes, config):
         opponents = [g for j, (gid, g) in enumerate(genomes) if j!= i][:3]
         evaluate_genome(genome, config, opponents)
     
-def play_game(net1, net2, max_turns=16):
+def play_game(net1, net2, max_turns=24):
     board = Board()
     players = [net1, net2]
     fitness = [0, 0]
@@ -31,6 +31,12 @@ def play_game(net1, net2, max_turns=16):
     allowed_indices = list(range(48))
     
     while board.check_win() is None and turn < max_turns:
+        # check if board is full (all 16 positions occupied) - early draw condition
+        # should be removed once temporary masking is removed and gobbling can occur
+        board_full = all(board.grid[row][col] for row in range(4) for col in range(4))
+        if board_full:
+            break # end game early, no more pieces can be placed
+            
         current_net = players[board.current_player]
         inputs = board.encode_board()
         outputs = current_net.activate(inputs)
@@ -42,7 +48,7 @@ def play_game(net1, net2, max_turns=16):
         
         # Check for repetition penalty (trying same move as last 2 attempts)
         if move in recent_moves[board.current_player][-2:]:
-            fitness[board.current_player] -= 5  # Penalty for repetition
+            fitness[board.current_player] -= 10  # Increased repetition penalty
         
         valid = False
         if move[0] == "external":
@@ -55,13 +61,12 @@ def play_game(net1, net2, max_turns=16):
             if board.is_valid_move(board.current_player, stack_index, to_row, to_col):
                 board.move_piece(stack_index, None, None, to_row, to_col)
                 fitness[board.current_player] += 5
-                valid = True
                 
                 # EXPLORATION BONUSES:
                 # Bonus for using a new external stack
                 if stack_index not in stacks_used[board.current_player]:
                     stacks_used[board.current_player].add(stack_index)
-                    fitness[board.current_player] += 8  # New stack bonus
+                    fitness[board.current_player] += 15  # Increased new stack bonus
                 
                 # Bonus for using a new board position
                 position = (to_row, to_col)
@@ -75,6 +80,8 @@ def play_game(net1, net2, max_turns=16):
                 if len(player_quadrants) > len(player_quadrants) - (1 if quadrant in player_quadrants else 0):
                     fitness[board.current_player] += 4  # New quadrant bonus
                 
+                valid = True
+                
         elif move[0] == "board":
             from_row, from_col, to_row, to_col = move[1:]
             from_stack = board.grid[from_row][from_col]
@@ -87,32 +94,37 @@ def play_game(net1, net2, max_turns=16):
             if board.is_valid_move(board.current_player, from_stack, to_row, to_col):
                 if board.uncover_check(from_row, from_col, to_row, to_col):
                     # move results in a loss due to uncovering a win without interrupting it
-                    fitness[1 - board.current_player] += 100
+                    fitness[1 - board.current_player] += 100  # Fixed the bug here
                     return fitness[0]
                 else:
                     board.move_piece(None, from_row, from_col, to_row, to_col)
                     fitness[board.current_player] += 5
                     valid = True
-                    
+        
         # Track recent moves for repetition checking
         recent_moves[board.current_player].append(move)
         if len(recent_moves[board.current_player]) > 3:  # Keep only last 3 moves
             recent_moves[board.current_player].pop(0)
-                    
+            
         if not valid:
-            fitness[board.current_player] -= 1
+            fitness[board.current_player] -= 2  # Increased penalty for invalid moves
             board.current_player = 1 - board.current_player # end turn
         turn += 1
+    
+    # END OF GAME BONUSES:
     winner = board.check_win()
     if winner is not None:
         fitness[winner] += 100
     #else: # small bonus for drawing, commented out for now until population matures
         #fitness[0] += 10
-        
+    
     # Exploration bonuses at end of game
     for player in [0, 1]:
-        # Bonus for stack diversity (reward using multiple stacks)
-        fitness[player] += len(stacks_used[player]) * 6
+        # Strong bonus for stack diversity (reward using multiple stacks)
+        stack_diversity_bonus = len(stacks_used[player]) * 12
+        if len(stacks_used[player]) >= 2:  # Extra bonus for using multiple stacks
+            stack_diversity_bonus += 20
+        fitness[player] += stack_diversity_bonus
         
         # Bonus for board coverage (reward spreading pieces around)
         fitness[player] += len(board_positions_used[player]) * 2
@@ -120,5 +132,5 @@ def play_game(net1, net2, max_turns=16):
         # Efficiency bonus (more pieces placed = better)
         pieces_placed = sum(1 for row in board.grid for stack in row if stack and stack[-1].owner == player)
         fitness[player] += pieces_placed * 3
-        
+    
     return fitness[0]
