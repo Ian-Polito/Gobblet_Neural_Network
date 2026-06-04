@@ -15,20 +15,63 @@ def eval_genomes(genomes, config):
     for i, (genome_id, genome) in enumerate(genomes):
         opponents = [g for j, (gid, g) in enumerate(genomes) if j!= i][:3]
         evaluate_genome(genome, config, opponents)
+
+def calculate_line_bonus(board, player, row, col):
+    bonus = 0
+    
+    # Check all four directions: horizontal, vertical, diagonal, anti-diagonal
+    directions = [
+        [(0, 1), (0, -1)],    # horizontal
+        [(1, 0), (-1, 0)],    # vertical  
+        [(1, 1), (-1, -1)],   # diagonal
+        [(1, -1), (-1, 1)]    # anti-diagonal
+    ]
+    
+    for direction_pair in directions:
+        count = 1  # Count the piece we just placed
+        
+        # Check both directions along this line
+        for dr, dc in direction_pair:
+            r, c = row + dr, col + dc
+            while 0 <= r < 4 and 0 <= c < 4:
+                if board.grid[r][c] and board.grid[r][c][-1].owner == player:
+                    count += 1
+                    r, c = r + dr, c + dc
+                else:
+                    break
+        
+        # Award bonuses for longer lines
+        if count == 2:
+            bonus += 10  # Two in a line
+        elif count == 3:
+            bonus += 30  # Three in a line
+    
+    return bonus
     
 def play_game(net1, net2, max_turns=24):
     board = Board()
     players = [net1, net2]
     fitness = [0, 0]
     turn = 0
+    invalid_streak = [0, 0]
     
     # Track exploration metrics for both players
     stacks_used = [set(), set()]  # Track which external stacks each player has used
     board_positions_used = [set(), set()]  # Track board positions each player has used
     recent_moves = [[], []]  # Track recent moves to penalize repetition
+    repetition_count = [0, 0]  # Track consecutive repetitions for escalating penalties
     
     # temporarily restrict outputs to just external stack -> board moves
     allowed_indices = list(range(48))
+    
+    # Add adjacent board→board moves only
+    for move_idx in range(48, 288):
+        move = board.decode_move(move_idx)
+        if move[0] == "board":
+            from_row, from_col, to_row, to_col = move[1:]
+            # Only allow moves to adjacent squares (Manhattan distance of 1)
+            if abs(from_row - to_row) + abs(from_col - to_col) == 1:
+                allowed_indices.append(move_idx)
     
     while board.check_win() is None and turn < max_turns:
         # check if board is full (all 16 positions occupied) - early draw condition
@@ -46,9 +89,13 @@ def play_game(net1, net2, max_turns=24):
         #move_index = np.argmax(outputs)
         move = board.decode_move(move_index)
         
-        # Check for repetition penalty (trying same move as last 2 attempts)
+        # repetition penalty
         if move in recent_moves[board.current_player][-2:]:
-            fitness[board.current_player] -= 10  # Increased repetition penalty
+            repetition_count[board.current_player] += 1
+            penalty = 10 + (repetition_count[board.current_player] * 10)
+            fitness[board.current_player] -= penalty
+        else:
+            repetition_count[board.current_player] = 0  # Reset if they break the pattern
         
         valid = False
         if move[0] == "external":
@@ -68,17 +115,11 @@ def play_game(net1, net2, max_turns=24):
                     stacks_used[board.current_player].add(stack_index)
                     fitness[board.current_player] += 15  # Increased new stack bonus
                 
-                # Bonus for using a new board position
-                position = (to_row, to_col)
-                if position not in board_positions_used[board.current_player]:
-                    board_positions_used[board.current_player].add(position)
-                    fitness[board.current_player] += 3  # New position bonus
-                
-                # Bonus for board coverage (using different quadrants)
-                quadrant = (to_row // 2, to_col // 2)
-                player_quadrants = {(pos[0] // 2, pos[1] // 2) for pos in board_positions_used[board.current_player]}
-                if len(player_quadrants) > len(player_quadrants) - (1 if quadrant in player_quadrants else 0):
-                    fitness[board.current_player] += 4  # New quadrant bonus
+                # Bonus for using a new board position, commented out for now
+                #position = (to_row, to_col)
+                #if position not in board_positions_used[board.current_player]:
+                    #board_positions_used[board.current_player].add(position)
+                    #fitness[board.current_player] += 3  # New position bonus
                 
                 valid = True
                 
@@ -94,12 +135,19 @@ def play_game(net1, net2, max_turns=24):
             if board.is_valid_move(board.current_player, from_stack, to_row, to_col):
                 if board.uncover_check(from_row, from_col, to_row, to_col):
                     # move results in a loss due to uncovering a win without interrupting it
-                    fitness[1 - board.current_player] += 100  # Fixed the bug here
+                    fitness[1 - board.current_player] += 100
                     return fitness[0]
                 else:
                     board.move_piece(None, from_row, from_col, to_row, to_col)
                     fitness[board.current_player] += 5
+                    # Bonus for successfully using a board->board move
+                    fitness[board.current_player] += 8  # Encourage using board->board moves
                     valid = True
+        
+        # STRATEGIC BONUSES: Check for pieces in a line after placing
+        if valid:
+            line_bonus = calculate_line_bonus(board, board.current_player, to_row, to_col)
+            fitness[board.current_player] += line_bonus
         
         # Track recent moves for repetition checking
         recent_moves[board.current_player].append(move)
@@ -107,8 +155,11 @@ def play_game(net1, net2, max_turns=24):
             recent_moves[board.current_player].pop(0)
             
         if not valid:
-            fitness[board.current_player] -= 2  # Increased penalty for invalid moves
+            invalid_streak[board.current_player] += 1
+            fitness[board.current_player] -= 2 * invalid_streak[board.current_player]
             board.current_player = 1 - board.current_player # end turn
+        else:
+            invalid_streak[board.current_player] = 0 # reset streak on valid move
         turn += 1
     
     # END OF GAME BONUSES:

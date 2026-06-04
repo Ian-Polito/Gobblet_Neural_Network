@@ -21,7 +21,7 @@ class Board:
                 [GamePiece(size,1) for size in (range(1,5))] for _ in range(3)
             ]}
         self.external_stacks2 = {0:[None for _ in range(3)],1:[None for _ in range(3)]}
-        self.current_player = np.random.randint(1)
+        self.current_player = np.random.randint(0, 2)
         self.possible_moves = self.enumerate_all_possible_moves()
     
     # returns a list of all possible move tuples in a fixed order
@@ -152,7 +152,7 @@ class Board:
             opponent = 1 - self.current_player
             win = self.check_win() # check if moving this piece uncovers a four in a row
             if win == opponent: # if moving the piece uncovers a four in a row
-                if all((self.is_valid_move(self.current_player, self.grid[from_row][from_col], to_row, to_col)) and from_row != to_row and from_col != to_col):
+                if (self.is_valid_move(self.current_player, self.grid[from_row][from_col], to_row, to_col) and from_row != to_row and from_col != to_col):
                 # check if the move is valid, and not putting the piece back where it was
                     self.grid[to_row][to_col].append(piece) # temporarily move the piece to the destination
                     if self.check_win() == opponent: # check if this interrupted the four in a row

@@ -47,6 +47,7 @@ if __name__ == "__main__":
     if args.checkpoint and os.path.exists(args.checkpoint):
         print(f"Resuming from checkpoint: {args.checkpoint}")
         p = neat.Checkpointer.restore_checkpoint(args.checkpoint)
+        
     else:
         print("Starting new population.")
         p = neat.Population(config)
