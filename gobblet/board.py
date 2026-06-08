@@ -246,7 +246,20 @@ class Board:
     def visualize_board_wrapper(self):
         self.window.mainloop()
         
-    def game_loop(self, net1, net2, turn=0, max_turns=16):
+    def get_valid_move_mask(self):
+        mask = []
+        for move in self.possible_moves:
+            if move[0] == "external":
+                stack_index, to_row, to_col = move[1:]
+                valid = self.is_valid_move(self.current_player, stack_index, to_row, to_col)
+            elif move[0] == "board":
+                from_row, from_col, to_row, to_col = move[1:]
+                from_stack = self.grid[from_row][from_col]
+                valid = self.is_valid_move(self.current_player, from_stack, to_row, to_col)
+            mask.append(valid)
+        return mask
+        
+    def game_loop(self, net1, net2, turn=0, max_turns=64):
         winner = self.check_win()
         if winner is not None or turn >= max_turns:
             self.visualize_win(winner)
@@ -259,43 +272,36 @@ class Board:
         current_net = [net1, net2][self.current_player]
         inputs = self.encode_board()
         outputs = current_net.activate(inputs)
-        # temporarily restrict outputs to just external stack -> board moves
-        allowed_indices = list(range(48))
-        # temporarily mask outputs
-        masked_outputs = [outputs[i] if i in allowed_indices else -float("inf") for i in range(len(outputs))]
+        # mask out invalid moves
+        valid_mask = self.get_valid_move_mask(board)
+        masked_outputs = [outputs[i] if valid_mask[i] else -float("inf") for i in range(len(outputs))]
+        if all(v == -float("inf") for v in masked_outputs):
+            print("Game ended in a draw.")
+            return # no valid moves, end as draw
         move_index = np.argmax(masked_outputs)
-        #move_index = np.argmax(outputs)
         move = self.decode_move(move_index)
         
-        valid = False
         if move[0] == "external":
             stack_index, to_row, to_col = move[1:]
-            if self.is_valid_move(self.current_player, stack_index, to_row, to_col):
-                self.move_piece(stack_index, None, None, to_row, to_col)
-                valid = True
+            self.move_piece(stack_index, None, None, to_row, to_col)
         elif move[0] == "board":
             from_row, from_col, to_row, to_col = move[1:]
             from_stack = self.grid[from_row][from_col]
-            if self.is_valid_move(self.current_player, from_row, from_col, to_row, to_col):
-                if self.uncover_check(from_row, from_col, to_row, to_col):
-                    print(f"Player {1 - self.current_player} wins by uncovering!")
-                    self.visualize_win(1 - self.current_player)
-                    if from_row == to_row and from_col == to_col:
-                        # for visual purposes, remove the piece to show the win
-                        self.grid2 = self.grid.copy()
-                        self.grid[from_row][from_col].pop()
-                    else:
-                        # for visual purposes, move the piece to show the win
-                        self.move_piece(None, from_row, from_col, to_row, to_col)
-                    self.visualize_board()
-                    return
+            if self.uncover_check(from_row, from_col, to_row, to_col):
+                print(f"Player {1 - self.current_player} wins by uncovering!")
+                self.visualize_win(1 - self.current_player)
+                if from_row == to_row and from_col == to_col:
+                    # for visual purposes, remove the piece to show the win
+                    self.grid2 = self.grid.copy()
+                    self.grid[from_row][from_col].pop()
                 else:
+                    # for visual purposes, move the piece to show the win
                     self.move_piece(None, from_row, from_col, to_row, to_col)
-                    valid = True
+                self.visualize_board()
+                return
+            else:
+                self.move_piece(None, from_row, from_col, to_row, to_col)
                         
-        if not valid:
-            self.current_player = 1 - self.current_player
-            print(f"Invalid move by player {self.current_player}")
         self.visualize_board()
         self.window.after(5000, lambda: self.game_loop(net1, net2, turn+1, max_turns)) # 5 second delay between moves
         print(f"Player {self.current_player}: Move {move}, Valid: {valid}")
