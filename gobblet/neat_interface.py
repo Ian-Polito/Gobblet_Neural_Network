@@ -77,14 +77,13 @@ def play_game(net1, net2, max_turns=64):
                 
             # EXPLORATION BONUSES:
             # Bonus for using a new external stack
-            if stack_index not in stacks_used[board.current_player]:
-                stacks_used[board.current_player].add(stack_index)
+            if stack_index not in stacks_used[current_player]:
+                stacks_used[current_player].add(stack_index)
                 fitness[current_player] += 15  # Increased new stack bonus
                 
         elif move[0] == "board":
             from_row, from_col, to_row, to_col = move[1:]
             current_player = board.current_player  # capture before move_piece flips it
-            from_stack = board.grid[from_row][from_col]
             if board.uncover_check(from_row, from_col, to_row, to_col):
                 # move results in a loss due to uncovering a win without interrupting it
                 fitness[1 - board.current_player] += 200
