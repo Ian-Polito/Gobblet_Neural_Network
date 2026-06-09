@@ -53,8 +53,8 @@ def play_game(net1, net2, max_turns=64):
     players = [net1, net2]
     fitness = [0, 0]
     turn = 0
-    # Track exploration metrics for both players
-    stacks_used = [set(), set()]  # Track which external stacks each player has used
+    # line bonus metric to keep track if a genome has already gotten the two in a row and three in a row bonuses
+    line_bonus_awarded = [[False, False], [False, False]]  # [player][0=two_in_row, 1=three_in_row]
     
     while board.check_win() is None and turn < max_turns:
         current_net = players[board.current_player]
@@ -69,36 +69,38 @@ def play_game(net1, net2, max_turns=64):
         
         move_index = np.argmax(masked_outputs)
         move = board.decode_move(move_index)
+        current_player = board.current_player  # capture before move_piece flips it
         
         if move[0] == "external":
             stack_index, to_row, to_col = move[1:]
-            current_player = board.current_player  # capture before move_piece flips it
             board.move_piece(stack_index, None, None, to_row, to_col)
-                
-            # EXPLORATION BONUSES:
-            # Bonus for using a new external stack
-            if stack_index not in stacks_used[current_player]:
-                stacks_used[current_player].add(stack_index)
-                fitness[current_player] += 15  # Increased new stack bonus
                 
         elif move[0] == "board":
             from_row, from_col, to_row, to_col = move[1:]
-            current_player = board.current_player  # capture before move_piece flips it
             if board.uncover_check(from_row, from_col, to_row, to_col):
                 # move results in a loss due to uncovering a win without interrupting it
                 fitness[1 - board.current_player] += 200
+                print("a genome won due to an uncover check")
                 return fitness[0]
             else:
                 board.move_piece(None, from_row, from_col, to_row, to_col)
+        turn += 1
         
         # STRATEGIC BONUSES: Check for pieces in a line after placing
         line_bonus = calculate_line_bonus(board, current_player, to_row, to_col)
-        fitness[current_player] += line_bonus
+        if line_bonus > 0:
+            if line_bonus >= 10 and not line_bonus_awarded[current_player][0]:
+                fitness[current_player] += 10
+                line_bonus_awarded[current_player][0] = True
+            if line_bonus >= 30 and not line_bonus_awarded[current_player][1]:
+                fitness[current_player] += 30
+                line_bonus_awarded[current_player][1] = True
     
     # END OF GAME BONUSES:
     winner = board.check_win()
     if winner is not None:
         fitness[winner] += 200
+        print("a genome won")
     else: # small bonus for drawing
         fitness[0] += 10
     
