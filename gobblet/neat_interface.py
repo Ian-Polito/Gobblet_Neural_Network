@@ -80,7 +80,7 @@ def play_game(net1, net2, max_turns=64):
             if board.uncover_check(from_row, from_col, to_row, to_col):
                 # move results in a loss due to uncovering a win without interrupting it
                 fitness[1 - board.current_player] += 200
-                print("a genome won due to an uncover check")
+                fitness[board.current_player] -= 100 # penalty for uncovering opponent's win
                 return fitness[0]
             else:
                 board.move_piece(None, from_row, from_col, to_row, to_col)
@@ -100,7 +100,6 @@ def play_game(net1, net2, max_turns=64):
     winner = board.check_win()
     if winner is not None:
         fitness[winner] += 200
-        print("a genome won")
     else: # small bonus for drawing
         fitness[0] += 10
     
