@@ -79,7 +79,8 @@ def play_game(net1, net2, max_turns=64):
             from_row, from_col, to_row, to_col = move[1:]
             if board.uncover_check(from_row, from_col, to_row, to_col):
                 # move results in a loss due to uncovering a win without interrupting it
-                fitness[1 - board.current_player] += 200
+                speed_bonus = max(0, 64 - turn)
+                fitness[1 - board.current_player] += 200 + speed_bonus
                 fitness[board.current_player] -= 100 # penalty for uncovering opponent's win
                 return fitness[0]
             else:
@@ -99,7 +100,8 @@ def play_game(net1, net2, max_turns=64):
     # END OF GAME BONUSES:
     winner = board.check_win()
     if winner is not None:
-        fitness[winner] += 200
+        speed_bonus = max(0, 64 - turn)
+        fitness[winner] += 200 + speed_bonus
     else: # small bonus for drawing
         fitness[0] += 10
     
