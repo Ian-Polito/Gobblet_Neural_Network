@@ -11,6 +11,33 @@ parser.add_argument("-generations", type=int, default=50, help="Number of genera
 parser.add_argument("-checkpoint", type=str, help="Path to a checkpoint file to resume training")
 args = parser.parse_args()
 
+class HallOfFameReporter(neat.reporting.BaseReporter):
+    def __init__(self, hall_of_fame, filename="gobblet_hall_of_fame.pkl", interval=10):
+        self.hall_of_fame = hall_of_fame
+        self.filename = filename
+        self.interval = interval
+        self.generation = 0
+    
+    def post_evaluate(self, config, population, species, best_genome):
+        self.generation += 1
+        if self.generation % self.interval == 0:
+            with open(self.filename, "wb") as f:
+                pickle.dump(self.hall_of_fame, f)
+            print(f"Hall of Fame saved ({len(self.hall_of_fame)} members)")
+
+def load_hall_of_fame(filename="gobblet_hall_of_fame.pkl"):
+    if os.path.exists(filename):
+        with open(filename, "rb") as f:
+            print(f"Loading Hall of Fame from {filename}")
+            return pickle.load(f)
+    print("No Hall of Fame found, starting fresh.")
+    return []
+
+def make_eval_genomes(hall_of_fame):
+    def eval_genomes_wrapper(genomes, config):
+        eval_genomes(genomes, config, hall_of_fame)
+    return eval_genomes_wrapper
+
 def load_genome(filename):
     if os.path.exists(filename):
         with open(filename, "rb") as f:
@@ -56,10 +83,12 @@ if __name__ == "__main__":
     p.add_reporter(neat.StdOutReporter(True))
     p.add_reporter(neat.StatisticsReporter())
     checkpointer = neat.Checkpointer(generation_interval=10, filename_prefix="Gobblet_Population-")
-    p.add_reporter(checkpointer)
+    p.add_reporter(checkpointer
+    p.add_reporter(HallOfFameReporter(hall_of_fame))
     
     # run NEAT
-    winner = p.run(eval_genomes, n=args.generations)
+    hall_of_fame = load_hall_of_fame()
+    winner = p.run(make_eval_genomes, n=args.generations)
     final_population = [(k, v) for k, v in p.population.items()]
     top_two = sorted(final_population, key=lambda g: g[1].fitness if g[1].fitness is not None else -float('inf'), reverse=True)[:2]
     
@@ -69,5 +98,9 @@ if __name__ == "__main__":
     if len(top_two) > 1:
         with open("gobblet_champion2.pkl", "wb") as f:
             pickle.dump(top_two[1][1], f)
+            
+    # Save the Hall of Fame
+    with open("gobblet_hall_of_fame.pkl", "wb") as f:
+        pickle.dump(hall_of_fame, f)
             
     print("Training complete. Best genome saved to gobblet_champion.pkl")

@@ -1,20 +1,65 @@
 import neat
+import random
 import numpy as np
 from .board import Board
 
-def evaluate_genome(genome, config, opponents):
+def evaluate_genome(genome, config, current_opponents, hall_of_fame):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     fitness = 0
+    opponents = []
+    
+    # add opponents, four from the current generation and up to eight from the hall of fame
+    opponents.extend(curent_opponents[:4])
+    if len(hall_of_fame) > 0:
+        hof_sample = random.sample(hall_of_fame, min(8, len(hall_of_fame)))
+        opponents.extend(hof_sample)
+    # if hall of fame doesnt have eight members yet, pad with more current gen opponents
+    remaing = 12 - len(opponents)
+    if remaining > 0:
+        opponents.extend(current_opponents[4:4+remaining])
     
     for opponent_genome in opponents:
         opponent_net = neat.nn.FeedForwardNetwork.create(opponent_genome, config)
         fitness += play_game(net, opponent_net)
+        
     genome.fitness = fitness / len(opponents)
     
-def eval_genomes(genomes, config):
+def eval_genomes(genomes, config, hall_of_fame):
     for i, (genome_id, genome) in enumerate(genomes):
-        opponents = [g for j, (gid, g) in enumerate(genomes) if j!= i][:3]
-        evaluate_genome(genome, config, opponents)
+        current_opponents = [g for j, (gid, g) in enumerate(genomes) if j!= i]
+        random.shuffle(current_opponents)
+        evaluate_genome(genome, config, current_opponents, hall_of_fame)
+    
+    # add the best genome from this generation to the hall of fame
+    best = max(genomes, key=lambda x: x[1].fitness if x[1].fitness is not None else -float('inf'))
+    hall_of_fame.append(best[1])
+    
+    # hall of fame has a 50 member limit, evict the oldest
+    if len(hall_of_fame) > 50:
+        hall_of_fame.pop(0)
+
+def calculate_block_bonus(board, player, to_row, to_col):
+    opponent = 1 - player
+    bonus = 0
+    directions = [
+        [(0, 1), (0, -1)],
+        [(1, 0), (-1, 0)],
+        [(1, 1), (-1, -1)],
+        [(1, -1), (-1, 1)]
+    ]
+    for direction_pair in directions:
+        count = 0
+        for dr, dc in direction_pair:
+            r, c = to_row + dr, to_col + dc
+            while 0 <= r < 4 and 0 <= c < 4:
+                if board.grid[r][c] and board.grid[r][c][-1].owner == opponent:
+                    count += 1
+                    r, c = r + dr, c + dc
+                else:
+                    break
+        if count >= 3:
+            bonus += 50
+    return bonus
 
 def calculate_line_bonus(board, player, row, col):
     bonus = 0
@@ -89,6 +134,7 @@ def play_game(net1, net2, max_turns=64):
         
         # STRATEGIC BONUSES: Check for pieces in a line after placing
         line_bonus = calculate_line_bonus(board, current_player, to_row, to_col)
+        block_bonus = calculate_block_bonus(board, current_player, to_row, to_col)
         if line_bonus > 0:
             if line_bonus >= 10 and not line_bonus_awarded[current_player][0]:
                 fitness[current_player] += 10
@@ -96,11 +142,12 @@ def play_game(net1, net2, max_turns=64):
             if line_bonus >= 30 and not line_bonus_awarded[current_player][1]:
                 fitness[current_player] += 30
                 line_bonus_awarded[current_player][1] = True
+        fitness[current_player] += block_bonus
     
     # END OF GAME BONUSES:
     winner = board.check_win()
     if winner is not None:
-        speed_bonus = max(0, 64 - turn)
+        speed_bonus = max(0, (64 - turn) * 3)
         fitness[winner] += 200 + speed_bonus
     else: # small bonus for drawing
         fitness[0] += 10

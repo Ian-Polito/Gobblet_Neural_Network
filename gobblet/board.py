@@ -273,7 +273,7 @@ class Board:
         inputs = self.encode_board()
         outputs = current_net.activate(inputs)
         # mask out invalid moves
-        valid_mask = self.get_valid_move_mask(board)
+        valid_mask = self.get_valid_move_mask()
         masked_outputs = [outputs[i] if valid_mask[i] else -float("inf") for i in range(len(outputs))]
         if all(v == -float("inf") for v in masked_outputs):
             print("Game ended in a draw.")
@@ -304,7 +304,7 @@ class Board:
                         
         self.visualize_board()
         self.window.after(5000, lambda: self.game_loop(net1, net2, turn+1, max_turns)) # 5 second delay between moves
-        print(f"Player {self.current_player}: Move {move}, Valid: {valid}")
+        print(f"Player {self.current_player}: Move {move}")
     
     def visualize_board(self):
         self.canvas.delete("piece")
